@@ -26,6 +26,10 @@ int main() {
     a.test_sig(1, 2);
     a.test_sig.disconnect(id);
     a.test_sig(3, 4);
+    a.test_sig.block();
+    a.test_sig(5, 6);
+    a.test_sig.block(false);
+    a.test_sig(7, 8);
 
     a.visible_sig.connect([](std::string a, double b) {
         std::cout << "visible_sig: " << a << " " << b << std::endl;
