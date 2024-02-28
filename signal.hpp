@@ -4,7 +4,8 @@
 #define _OHTOAI_SIGNAL_HPP_
 
 #include <memory>
-#include <list>
+#include <unordered_set>
+#include <atomic>
 #include <functional>
 
 namespace ohtoai{
@@ -13,12 +14,12 @@ namespace ohtoai{
         class signal {
             using slot_t = std::function<void(Args...)>;
             using slot_ptr_t = std::shared_ptr<slot_t>;
-            struct slot_id_t {
-                slot_id_t(slot_ptr_t _slot) : slot(_slot) {}
-                bool operator==(const slot_id_t& _id) const {
+            struct slot_handle_t {
+                slot_handle_t(slot_ptr_t _slot) : slot(_slot) {}
+                bool operator==(const slot_handle_t& _id) const {
                     return slot == _id.slot;
                 }
-                bool operator!=(const slot_id_t& _id) const {
+                bool operator!=(const slot_handle_t& _id) const {
                     return slot != _id.slot;
                 }
                 bool operator==(const slot_ptr_t& _slot) const {
@@ -28,32 +29,39 @@ namespace ohtoai{
                     return slot != _slot;
                 }
             private:
+                friend class signal;
                 const slot_ptr_t slot;
             };
         public:
             template <typename Callback>
-            slot_id_t connect(Callback _fun) {
+            slot_handle_t connect(Callback _fun) {
                 auto f = std::make_shared<slot_t>(_fun);
-                slots.push_back(f);
+                slots.insert(f);
                 return f;
             }
-            void disconnect(const slot_id_t& slot_id) {
-                for (auto it = slots.begin(); it != slots.end(); ++it) {
-                    if (slot_id  == *it) {
-                        slots.erase(it);
-                        break;
-                    }
-                }
+            void disconnect(const slot_handle_t& slot_id) {
+                slots.erase(slots.find(slot_id.slot));
             }
 
             void operator()(Args...args) {
+                if (blocked) return;
                 for (auto& p_slot : slots) {
                     auto&slot = *p_slot;
                     slot(std::forward<Args>(args)...);
                 }
             }
+
+            void block(bool _block = true) {
+                blocked = _block;
+            }
+
+            bool is_blocked() const {
+                return blocked;
+            }
+
         private:
-            std::list<std::shared_ptr<slot_t>> slots;
+            std::atomic_bool blocked;
+            std::unordered_set<std::shared_ptr<slot_t>> slots;
         };
     }
 }
