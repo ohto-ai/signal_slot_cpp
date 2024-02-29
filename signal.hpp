@@ -12,43 +12,66 @@ namespace ohtoai{
     namespace signal {
         template <typename...Args>
         class signal {
-            using slot_t = std::function<void(Args...)>;
-            using slot_ptr_t = std::shared_ptr<slot_t>;
+            template<typename...Params>
+            using global_func_t = void (*)(Params...);
+            template<typename T, typename ...Params>
+            using mem_func_t = void (T::*)(Params...);
+
+            using callback_t = global_func_t<Args...>;
+            using slot_func_t = std::function<void(Args...)>;
+
+            using slot_t = std::variant<const signal*, std::weak_ptr<slot_func_t>>;
+
             struct slot_handle_t {
-                slot_handle_t(slot_ptr_t _slot) : slot(_slot) {}
+                slot_handle_t(std::shared_ptr<slot_func_t> _slot_fun) : slot(std::weak_ptr<slot_func_t>(_slot_fun)) {}
+                slot_handle_t(const signal* sig) : slot(sig) {}
                 bool operator==(const slot_handle_t& _id) const {
-                    return slot == _id.slot;
-                }
-                bool operator!=(const slot_handle_t& _id) const {
-                    return slot != _id.slot;
+                    if (std::holds_alternative<const signal*>(slot)
+                        && std::holds_alternative<const signal*>(_id.slot)) {
+                        return std::get<const signal*>(slot) == std::get<const signal*>(_id.slot);
+                    }
+                    else if (std::holds_alternative<std::weak_ptr<slot_func_t>>(_id.slot)){
+                        return operator==(id.slot.lock());
+                    }
                 }
                 bool operator==(const slot_ptr_t& _slot) const {
-                    return slot == _slot;
-                }
-                bool operator!=(const slot_ptr_t& _slot) const {
-                    return slot != _slot;
+                    if (!std::holds_alternative<std::weak_ptr<slot_func_t>>(slot))
+                        return false;
+                    auto& _slot = std::get<std::weak_ptr<slot_func_t>>(slot);
+                    return _slot && _slot.lock() == _slot;
                 }
             private:
                 friend class signal;
-                const slot_ptr_t slot;
+                const slot_t slot;
             };
         public:
-            template <typename Callback>
-            slot_handle_t connect(Callback _fun) {
-                auto f = std::make_shared<slot_t>(_fun);
-                slots.insert(f);
+            slot_handle_t connect(callback_t _fun) {
+                auto f = std::make_shared<slot_func_t>(_fun);
+                slot_funcs.insert(f);
                 return f;
             }
             void disconnect(const slot_handle_t& slot_id) {
-                slots.erase(slots.find(slot_id.slot));
+                if (std::holds_alternative<const signal*>(slot_id.slot)) {
+                    slot_sigs.erase(slot_sigs.find(std::get<const signal*>()));
+                }
+                else {
+                    slot_funcs.erase(slot_funcs.find(std::get<std::weak_ptr<slot_func_t>>(slot).lock());
+                }
             }
 
-            void operator()(Args...args) {
+            void emit(Args...args) {
                 if (blocked) return;
-                for (auto& p_slot : slots) {
-                    auto&slot = *p_slot;
-                    slot(std::forward<Args>(args)...);
+                for (auto& p_slot : slot_funcs) {
+                    std::invoke(*p_slot, std::forward<Args>(args)...);
                 }
+                for (auto& p_slot : slot_sigs) {
+                    std::invoke(*p_slot, std::forward<Args>(args)...);
+                }
+            }
+                
+
+            void operator()(Args...args) {
+                return emit(std::forward<Arg>(args)...);
             }
 
             void block(bool _block = true) {
@@ -61,7 +84,8 @@ namespace ohtoai{
 
         private:
             std::atomic_bool blocked;
-            std::unordered_set<std::shared_ptr<slot_t>> slots;
+            std::unordered_set<std::shared_ptr<slot_func_t>> slot_funcs;
+            std::unordered_set<const signal*> slot_sigs;
         };
     }
 }
