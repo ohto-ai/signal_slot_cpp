@@ -26,5 +26,8 @@
     <ClInclude Include="event_loop.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="type.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

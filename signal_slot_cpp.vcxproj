@@ -136,6 +136,7 @@
   <ItemGroup>
     <ClInclude Include="event_loop.hpp" />
     <ClInclude Include="signal.hpp" />
+    <ClInclude Include="type.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

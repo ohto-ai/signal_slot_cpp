@@ -13,10 +13,9 @@ namespace ohtoai{
     namespace signal {
         template <typename...Args>
         class signal {
-            template<typename...Params>
-            using global_func_t = void (*)(Params...);
-            template<typename T, typename ...Params>
-            using mem_func_t = void (T::*)(Params...);
+            using global_func_t = void (*)(Args...);
+            template<typename T>
+            using mem_func_t = void (T::*)(Args...);
 
             using slot_func_t = std::function<void(Args...)>;
 
@@ -45,6 +44,12 @@ namespace ohtoai{
                 const slot_t slot;
             };
         public:
+            template<typename T>
+            slot_handle_t connect(T* receiver, mem_func_t<T> _fun) {
+                return connect([receiver, _fun](Args...args) {
+                    std::invoke(_fun, receiver, std::forward<Args>(args)...);
+                    });
+            }
             slot_handle_t connect(slot_func_t _fun) {
                 auto f = std::make_shared<slot_func_t>(_fun);
                 slot_funcs.insert(f);
